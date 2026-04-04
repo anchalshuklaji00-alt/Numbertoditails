@@ -5,3 +5,4 @@ holehe
 flask
 beautifulsoup4
 aiohttp
+telebot
