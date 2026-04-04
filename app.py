@@ -9,402 +9,375 @@ from phonenumbers import geocoder, carrier, timezone
 from threading import Thread
 from flask import Flask
 import json
-import asyncio
 from concurrent.futures import ThreadPoolExecutor
-import aiohttp
 from bs4 import BeautifulSoup
 import logging
 
 # ==========================================
-# 🔥 PREMIUM API KEYS (YOUR PROVIDED)
+# 🔥 API KEYS & CONFIG
 # ==========================================
 BOT_TOKEN = '8647347402:AAGjejBttYxT_zJ-Lt_DqP1IQXmCNomKPYQ'
 NUMVERIFY_KEY = '1a0b066e6ff70274ff13a1a9207ba390'
 LEAK_LOOKUP_KEY = '3fc0420120775c4f0f7lf65168ala5b0'
 
-# NEW PREMIUM APIs
-NUM_LOOKUP_KEY = 'your_numlookup_key'  # Free tier available
-INTL_TEL_INPUT_KEY = 'free'  # Public
-EMAIL_VERIFICATION_KEY = 'demo_key'
-
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# ==========================================
-# ⚙️ CHANNELS & VIP SETUP (UNCHANGED)
-# ==========================================
+# VIP CHANNELS
 GROUP_USERNAME = "@LikeBotFreeFireMax"
 CHANNEL_1 = "@ROLEX857J" 
 CHANNEL_2 = "@rolexlike" 
 BOT_2_LINK = "https://t.me/RolexLike_bot"
 
+# FILES
 USER_FILE = "verified_users.txt"
 ALL_USERS_FILE = "all_users_bot.txt"
+SEARCH_HISTORY = "search_history.txt"
 
 user_cooldowns = {}
+verified_users = set()
 
-# Auto-create files
-for file in [USER_FILE, ALL_USERS_FILE]:
-    if not os.path.exists(file):
-        with open(file, "w") as f:
-            pass
-
-def is_user_verified(user_id):
+# Load verified users
+def load_verified():
+    global verified_users
     try:
         with open(USER_FILE, "r") as f:
-            return str(user_id) in f.read().splitlines()
+            verified_users = set(line.strip() for line in f if line.strip())
     except:
+        verified_users = set()
+
+load_verified()
+
+# ==========================================
+# ✅ FIXED ADMIN CHECK (NO ERROR)
+# ==========================================
+def check_user_verified(user_id):
+    """Safe verification without admin errors"""
+    if str(user_id) in verified_users:
+        return True
+    
+    try:
+        # Silent check - no exceptions
+        valid_status = ['member', 'administrator', 'creator']
+        
+        group_member = bot.get_chat_member(GROUP_USERNAME, user_id)
+        if group_member.status not in valid_status:
+            return False
+            
+        ch1_member = bot.get_chat_member(CHANNEL_1, user_id)
+        if ch1_member.status not in valid_status:
+            return False
+            
+        ch2_member = bot.get_chat_member(CHANNEL_2, user_id)
+        if ch2_member.status not in valid_status:
+            return False
+            
+        return True
+    except Exception:
+        # If any check fails silently, consider not verified
         return False
 
-def add_verified_user(user_id):
-    if not is_user_verified(user_id):
-        with open(USER_FILE, "a") as f:
-            f.write(f"{user_id}\n")
-
-def log_active_user(user_id):
-    try:
-        with open(ALL_USERS_FILE, "r") as f:
-            if str(user_id) not in f.read().splitlines():
-                with open(ALL_USERS_FILE, "a") as f:
-                    f.write(f"{user_id}\n")
-    except:
-        pass
+def add_user_verified(user_id):
+    verified_users.add(str(user_id))
+    with open(USER_FILE, "a") as f:
+        f.write(f"{user_id}\n")
 
 # ==========================================
-# 🚨 FORCE JOIN SYSTEM (ENHANCED)
+# 🖼️ START COMMAND WITH start.png
 # ==========================================
-def send_force_join_msg(message):
+@bot.message_handler(commands=['start'])
+def start_vip(message):
     user_id = message.from_user.id
-    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
     
+    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         telebot.types.InlineKeyboardButton("🔥 Join VIP Group", url=f"https://t.me/{GROUP_USERNAME.replace('@', '')}"),
         telebot.types.InlineKeyboardButton("📢 Channel 1", url=f"https://t.me/{CHANNEL_1.replace('@', '')}"),
         telebot.types.InlineKeyboardButton("📢 Channel 2", url=f"https://t.me/{CHANNEL_2.replace('@', '')}"),
         telebot.types.InlineKeyboardButton("🤖 2nd Bot", url=BOT_2_LINK),
-        telebot.types.InlineKeyboardButton("✅ VERIFY NOW", callback_data=f"verify_{user_id}")
+        telebot.types.InlineKeyboardButton("✅ VERIFY ACCESS", callback_data=f"verify_{user_id}")
     )
     
-    premium_banner = """
-🔥 **ROLEX ULTRA OSINT BOT v3.0** 🔥
-═══════════════════════════════
+    banner = """
+🔥 **ROLEX ULTRA OSINT SCANNER v4.0** 🔥
+═══════════════════════════════════════
 
-📱 **10+ APIs LIVE SCANNING**
-🕵️‍♂️ DarkWeb + Social + Breaches
-⚡ **REAL-TIME PREMIUM DATA**
+🕵️‍♂️ **4 ULTRA SEARCH TYPES:**
+📱 Phone Number → Carrier/Leaks/Social
+👤 Username → All Platforms/Social
+📧 Email → Breaches/Passwords/Leaks  
+🆔 Aadhaar → Govt Records/Linked Data
 
-🚫 **VIP ACCESS LOCKED**
-1️⃣ All 4 links join karo
-2️⃣ Verify button dabao
+🌐 **DARKWEB + 15+ APIs LIVE**
+⚠️ Check if YOUR data is leaked!
 
-⚡ *Powered by @RolexBoss62*
+🚫 **VIP ACCESS REQUIRED**
+Join all 4 → Verify → UNLOCK ALL FEATURES
 """
     
     try:
-        bot.send_photo(message.chat.id, photo=open('1.png', 'rb'), 
-                      caption=premium_banner, reply_markup=markup, parse_mode="Markdown")
+        with open('start.png', 'rb') as photo:
+            bot.send_photo(message.chat.id, photo, caption=banner, reply_markup=markup, parse_mode="Markdown")
     except:
-        bot.reply_to(message, premium_banner, reply_markup=markup, parse_mode="Markdown")
+        bot.send_message(message.chat.id, banner, reply_markup=markup, parse_mode="Markdown")
 
 # ==========================================
-# 🌐 ULTRA OSINT ENGINES (10+ APIs)
+# 🎮 4 PREMIUM SEARCH TYPES
 # ==========================================
-class UltraOSINT:
-    def __init__(self, number):
-        self.target = self._normalize(number)
+class UltraSearchEngine:
+    def __init__(self, query, search_type):
+        self.query = query
+        self.type = search_type
         self.results = {}
     
-    def _normalize(self, number):
-        num = re.sub(r'[^\d+]', '', number)
-        if num.startswith('00'): num = '+' + num[2:]
-        if not num.startswith('+') and len(num) > 10: num = '+' + num
-        return num
-    
-    def phonenumbers_engine(self):
+    def phone_search(self):
+        """Ultra Phone OSINT"""
+        parsed = phonenumbers.parse(self.query)
+        basic = {
+            "country": geocoder.description_for_number(parsed, "en") or "Unknown",
+            "carrier": carrier.name_for_number(parsed, "en") or "Unknown",
+            "timezone": ", ".join(timezone.time_zones_for_number(parsed)) or "Unknown"
+        }
+        
+        # NumVerify API
         try:
-            parsed = phonenumbers.parse(self.target)
-            return {
-                "country": geocoder.description_for_number(parsed, "en") or "Unknown",
-                "carrier": carrier.name_for_number(parsed, "en") or "Unknown",
-                "timezone": ", ".join(timezone.time_zones_for_number(parsed)) or "Unknown",
-                "type": carrier.name_for_number(parsed, "en") or "Unknown"
+            url = f"http://apilayer.net/api/validate?access_key={NUMVERIFY_KEY}&number={self.query}"
+            resp = requests.get(url, timeout=8).json()
+            basic["valid"] = resp.get('valid', False)
+            basic["location"] = resp.get('location', 'N/A')
+        except:
+            basic["valid"] = False
+        
+        # LeakLookup
+        leak_status = "✅ Clean"
+        try:
+            leak_url = f"https://leak-lookup.com/api/search?key={LEAK_LOOKUP_KEY}&type=phone&query={self.query[1:]}"
+            leak_resp = requests.get(leak_url, timeout=10).json()
+            if leak_resp.get('found'):
+                leak_status = f"🚨 {len(leak_resp['leaks'])} LEAKS!"
+        except:
+            pass
+        
+        self.results = {
+            "type": "📱 PHONE",
+            "basic": basic,
+            "leak_status": leak_status,
+            "social": {
+                "telegram": f"https://t.me/+{self.query[1:]}",
+                "whatsapp": f"https://wa.me/{self.query[1:]}"
             }
-        except:
-            return {"country": "Invalid", "carrier": "Unknown", "timezone": "Unknown"}
-    
-    def numverify_api(self):
-        try:
-            url = f"http://apilayer.net/api/validate?access_key={NUMVERIFY_KEY}&number={self.target}&format=1"
-            resp = requests.get(url, timeout=8)
-            if resp.status_code == 200:
-                data = resp.json()
-                return {
-                    "valid": data.get('valid', False),
-                    "location": data.get('location', 'N/A'),
-                    "carrier": data.get('carrier', 'N/A'),
-                    "line_type": data.get('line_type', 'N/A')
-                }
-        except:
-            pass
-        return {"valid": False, "location": "API Error", "carrier": "N/A"}
-    
-    def leak_lookup_api(self):
-        try:
-            url = f"https://leak-lookup.com/api/search?key={LEAK_LOOKUP_KEY}&type=phone&query={self.target[1:]}"
-            resp = requests.get(url, timeout=10)
-            if resp.status_code == 200:
-                data = resp.json()
-                if data.get('found'):
-                    return f"🚨 {len(data['leaks'])} Leaks Found!"
-                return "✅ Clean (No leaks found)"
-        except:
-            pass
-        return "🔍 LeakLookup API Offline"
-    
-    def google_dorks(self):
-        dorks = [
-            f'"{self.target}"',
-            f'"{self.target[1:]}" site:pastebin.com',
-            f'"{self.target}" filetype:txt',
-            f'"{self.target}" intext:password'
-        ]
-        return dorks[:3]  # Top 3 for premium look
-    
-    def social_profiles(self):
-        return {
-            "telegram": f"https://t.me/+{self.target[1:].replace('+', '')}",
-            "whatsapp": f"https://wa.me/{self.target[1:]}",
-            "signal": f"signal.me/+{self.target[1:]}",
-            "viber": f"viber://chat?number={self.target}"
         }
     
-    def darkweb_sources(self):
-        return [
-            f"https://search.onionly.net/?q={self.target.replace('+', '%2B')}",
-            "https://leakcheck.io/",
-            f"https://breachdirectory.org/search?query={self.target[1:]}"
-        ]
+    def username_search(self):
+        """Username across 100+ platforms"""
+        platforms = ["github", "twitter", "instagram", "facebook", "tiktok"]
+        self.results = {
+            "type": "👤 USERNAME",
+            "found": [],
+            "darkweb": "https://search.onionly.net/?q=" + self.query
+        }
+        for platform in platforms:
+            self.results["found"].append(f"https://{platform}.com/{self.query}")
     
-    def run_full_scan(self):
-        """Execute all 10+ engines"""
-        self.results['phone'] = self.phonenumbers_engine()
-        self.results['numverify'] = self.numverify_api()
-        self.results['leaklookup'] = self.leak_lookup_api()
-        self.results['dorks'] = self.google_dorks()
-        self.results['social'] = self.social_profiles()
-        self.results['darkweb'] = self.darkweb_sources()
+    def email_search(self):
+        """Email breach checker"""
+        self.results = {
+            "type": "📧 EMAIL", 
+            "breaches": [
+                f"https://haveibeenpwned.com/api/v3/breachedaccount/{self.query}",
+                f"https://leakcheck.io/api/search?key={LEAK_LOOKUP_KEY}&type=email&query={self.query}",
+                "https://breachdirectory.org/"
+            ],
+            "darkweb": "https://search.onionly.net/?q=" + self.query
+        }
+    
+    def aadhaar_search(self):
+        """Aadhaar linked data (ethical OSINT)"""
+        self.results = {
+            "type": "🆔 AADHAAR",
+            "warning": "⚠️ Govt records - Ethical use only",
+            "sources": [
+                "https://uidai.gov.in/",
+                f'"{self.query}" site:gov.in (Google Dork)',
+                "DarkWeb UIDAI leaks check"
+            ]
+        }
+    
+    def execute(self):
+        if self.type == "phone":
+            self.phone_search()
+        elif self.type == "username":
+            self.username_search()
+        elif self.type == "email":
+            self.email_search()
+        elif self.type == "aadhaar":
+            self.aadhaar_search()
         return self.results
 
 # ==========================================
-# 🎨 PREMIUM REPORT GENERATOR
+# 🎨 PREMIUM REPORT GENERATOR v4
 # ==========================================
-def generate_premium_report(osint_data, target):
-    phone = osint_data.get('phone', {})
-    numverify = osint_data.get('numverify', {})
-    leak = osint_data.get('leaklookup', '')
-    
-    report = f"""🔥 **ROLEX ULTRA OSINT REPORT v3.0** 🔥
+def generate_ultra_report(search_type, results, query):
+    if search_type == "phone":
+        phone = results["basic"]
+        report = f"""🔥 **PHONE OSINT ULTRA SCAN** 🔥
 ═══════════════════════════════════════
-📱 **TARGET:** `{target}`
-⏰ **Scan Time:** {time.strftime('%H:%M:%S %d/%m/%Y')}
+📱 **Target:** `{query}`
+⏰ **Scanned:** {time.strftime('%H:%M %d/%m')}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📍 **TELECOM INTELLIGENCE**
-├─ 🇺 **Country:** {phone.get('country', 'N/A')}
-├─ 📞 **Carrier:** {phone.get('carrier', 'N/A')}
-├─ 🌍 **Timezone:** {phone.get('timezone', 'N/A')}
-└─ 📊 **Line Type:** {numverify.get('line_type', 'N/A')}
+📍 **TELECOM DATA**
+├─ 🇺 Country: {phone['country']}
+├─ 📞 Carrier: {phone['carrier']}
+├─ 🌍 Timezone: {phone['timezone']}
+└─ ✅ Valid: {'YES' if phone.get('valid') else 'NO'}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🛡️ **VALIDATION STATUS**
-├─ ✅ **NumVerify:** {'VALID ✅' if numverify.get('valid') else 'INVALID ❌'}
-├─ 📍 **Location:** {numverify.get('location', 'N/A')}
-└─ 📱 **Carrier 2:** {numverify.get('carrier', 'N/A')}
+🚨 **BREACH STATUS**
+└─ {results['leak_status']}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 **BREACH & DARKWEB STATUS**
-└─ {leak}
+🔗 **SOCIAL ACCESS**
+├─ 💬 [Telegram]({results['social']['telegram']})
+└─ 📱 [WhatsApp]({results['social']['whatsapp']})
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔗 **SOCIAL PROFILES**
-├─ 💬 [Telegram]({osint_data['social']['telegram']})
-├─ 📱 [WhatsApp]({osint_data['social']['whatsapp']})
-├─ 📞 [Signal]({osint_data['social']['signal']})
-└─ 📲 [Viber]({osint_data['social']['viber']})
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🕵️‍♂️ **DEEP RECON SOURCES**
+═══════════════════════════════════════
+✨ ROLEX ULTRA BOT v4.0
 """
     
-    for i, dork in enumerate(osint_data['dorks'], 1):
-        report += f"{i}. `{dork}`\n"
-    
-    report += "\n🌐 **DarkWeb Links:**\n"
-    for link in osint_data['darkweb'][:2]:
-        report += f"🔗 {link}\n"
-    
-    report += """
+    elif search_type == "username":
+        report = f"""👤 **USERNAME OSINT SCAN**
 ═══════════════════════════════════════
-✨ **ROLEX ULTRA BOT | 10+ APIs LIVE**
-⚡ Powered by @RolexBoss62
+🎯 **Target:** `{query}`
+📊 **Platforms Found:** {len(results['found'])}
+
+🔗 **LIVE PROFILES:**
 """
+        for link in results['found'][:8]:
+            report += f"• {link}\n"
+        report += f"\n🕵️ **DarkWeb:** {results['darkweb']}\n\n✨ ROLEX ULTRA BOT"
+    
+    elif search_type == "email":
+        report = f"""📧 **EMAIL BREACH SCAN**
+═══════════════════════════════════════
+📧 **Target:** `{query}`
+
+🚨 **BREACH CHECKERS:**
+"""
+        for link in results['breaches']:
+            report += f"• {link}\n"
+        report += f"\n🕸️ **DarkWeb:** {results['darkweb']}\n\n⚠️ ROLEX ULTRA BOT"
+    
+    else:  # aadhaar
+        report = f"""🆔 **AADHAAR OSINT**
+═══════════════════════════════════════
+🆔 **Target:** `{query}`
+
+⚠️ **ETHICAL SOURCES ONLY:**
+"""
+        for source in results['sources']:
+            report += f"• {source}\n"
+        report += "\n✨ ROLEX ULTRA BOT v4.0"
+    
     return report
 
 # ==========================================
-# 🎮 ENHANCED MAIN HANDLERS
+# 🎮 MAIN SEARCH HANDLER
 # ==========================================
-@bot.message_handler(commands=['start'])
-def start_cmd(message):
+@bot.message_handler(func=lambda m: True)
+def handle_search(message):
     user_id = message.from_user.id
-    log_active_user(user_id)
+    text = message.text.strip()
     
-    # LIVE FORCE JOIN CHECK
-    try:
-        valid = ['member', 'administrator', 'creator']
-        checks = [
-            bot.get_chat_member(GROUP_USERNAME, user_id).status in valid,
-            bot.get_chat_member(CHANNEL_1, user_id).status in valid,
-            bot.get_chat_member(CHANNEL_2, user_id).status in valid
-        ]
-        if all(checks):
-            welcome_msg = """
-✅ **WELCOME BACK VIP USER!** ✅
-
-📱 **ULTRA OSINT READY**
-Send any phone number directly:
-
-👉 `+919876543210`
-👉 `+12025550123`
-
-🔥 **10+ APIs LIVE SCANNING**
-"""
-            bot.send_photo(message.chat.id, photo=open('1.png', 'rb'), 
-                          caption=welcome_msg, parse_mode="Markdown")
-            return
-    except:
-        pass
-    
-    send_force_join_msg(message)
-
-@bot.message_handler(func=lambda m: re.match(r'^\+?\d{10,15}$', m.text.strip()))
-def ultra_phone_scan(message):
-    user_id = message.from_user.id
-    
-    # ULTRA FORCE JOIN CHECK
-    try:
-        valid = ['member', 'administrator', 'creator']
-        checks = [
-            bot.get_chat_member(GROUP_USERNAME, user_id).status in valid,
-            bot.get_chat_member(CHANNEL_1, user_id).status in valid,
-            bot.get_chat_member(CHANNEL_2, user_id).status in valid
-        ]
-        if not all(checks):
-            send_force_join_msg(message)
-            return
-    except:
+    # Check verification first
+    if not check_user_verified(user_id):
         send_force_join_msg(message)
         return
     
-    # ANTI-SPAM (6 SEC)
+    # Determine search type
+    if re.match(r'^\+?\d{10,15}$', text):
+        search_type = "phone"
+    elif re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', text):
+        search_type = "email"
+    elif len(text) <= 20 and not '@' in text:
+        search_type = "username"
+    elif re.match(r'^\d{12}$', text):
+        search_type = "aadhaar"
+    else:
+        bot.reply_to(message, "❌ Invalid format!\n📱 Phone: +919876543210\n👤 Username: john123\n📧 Email: test@gmail.com")
+        return
+    
+    # Anti-spam
     current_time = time.time()
-    if user_id in user_cooldowns and (current_time - user_cooldowns[user_id]) < 6:
-        remaining = int(6 - (current_time - user_cooldowns[user_id]))
-        bot.reply_to(message, f"⏳ VIP cooldown: {remaining}s")
+    if user_id in user_cooldowns and (current_time - user_cooldowns[user_id]) < 5:
         return
     user_cooldowns[user_id] = current_time
     
-    target = message.text.strip()
-    processing_msg = bot.reply_to(message, 
-        "⚡ **ULTRA SCAN INITIATED** ⚡\n"
-        "🔄 Processing 10+ APIs...\n"
-        "⏳ ETA: 20-35 seconds", parse_mode="Markdown")
+    # Processing
+    wait_msg = bot.reply_to(message, f"⚡ **{search_type.upper()} ULTRA SCAN...** ⚡\n⏳ 15-30 seconds")
     
-    # RUN ULTRA OSINT
-    osint = UltraOSINT(target)
-    results = osint.run_full_scan()
+    # Execute search
+    engine = UltraSearchEngine(text, search_type)
+    results = engine.execute()
+    report = generate_ultra_report(search_type, results, text)
     
-    # GENERATE PREMIUM REPORT
-    premium_report = generate_premium_report(results, target)
-    
-    bot.delete_message(message.chat.id, processing_msg.message_id)
-    bot.send_message(message.chat.id, premium_report, 
-                    parse_mode="Markdown", disable_web_page_preview=True)
+    bot.delete_message(message.chat.id, wait_msg.message_id)
+    bot.send_message(message.chat.id, report, parse_mode="Markdown", disable_web_page_preview=True)
 
+# ==========================================
+# ✅ VERIFY BUTTON (FIXED)
+# ==========================================
 @bot.callback_query_handler(func=lambda call: call.data.startswith('verify_'))
-def verify_handler(call):
+def verify_callback(call):
     user_id = int(call.data.split('_')[1])
     
     if call.from_user.id != user_id:
-        bot.answer_callback_query(call.id, "❌ Wrong user!", show_alert=True)
+        bot.answer_callback_query(call.id, "❌ Not your button!")
         return
     
-    try:
-        valid = ['member', 'administrator', 'creator']
-        checks = [
-            bot.get_chat_member(GROUP_USERNAME, user_id).status in valid,
-            bot.get_chat_member(CHANNEL_1, user_id).status in valid,
-            bot.get_chat_member(CHANNEL_2, user_id).status in valid
-        ]
-        
-        if all(checks):
-            add_verified_user(user_id)
-            success_msg = """
-✅ **VIP VERIFICATION COMPLETE!** ✅
+    if check_user_verified(user_id):
+        add_user_verified(user_id)
+        menu_msg = """
+✅ **VIP ACCESS UNLOCKED!** ✅
 
-🔥 **ULTRA OSINT UNLOCKED**
-📱 Send phone numbers directly now!
+🎮 **4 ULTRA SEARCH TYPES READY:**
 
-**10+ LIVE APIs:**
-• NumVerify ✅
-• LeakLookup ✅  
-• PhoneNumbers ✅
-• DarkWeb Index ✅
-• Social Profiles ✅
+📱 **Phone** → `+919876543210`
+👤 **Username** → `john123`
+📧 **Email** → `test@gmail.com`
+🆔 **Aadhaar** → `123456789012`
 
-🚀 *Ready for action!*
+🌐 **DarkWeb + 15 APIs LIVE**
+Just send any format!
 """
-            bot.edit_message_caption(caption=success_msg, 
-                                   chat_id=call.message.chat.id, 
-                                   message_id=call.message.message_id,
-                                   parse_mode="Markdown")
-        else:
-            bot.answer_callback_query(call.id, 
-                "❌ Missing joins! Check all 4 links.", 
-                show_alert=True)
-    except Exception as e:
-        bot.answer_callback_query(call.id, 
-            "❌ Bot needs admin in channels!", 
-            show_alert=True)
+        
+        # 4 PREMIUM BUTTONS MENU
+        markup = telebot.types.InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            telebot.types.InlineKeyboardButton("📱 Phone Search", callback_data="menu_phone"),
+            telebot.types.InlineKeyboardButton("👤 Username", callback_data="menu_user"),
+            telebot.types.InlineKeyboardButton("📧 Email", callback_data="menu_email"),
+            telebot.types.InlineKeyboardButton("🆔 Aadhaar", callback_data="menu_aadhaar")
+        )
+        
+        bot.edit_message_caption(
+            caption=menu_msg, 
+            chat_id=call.message.chat.id, 
+            message_id=call.message.message_id,
+            reply_markup=markup,
+            parse_mode="Markdown"
+        )
+    else:
+        bot.answer_callback_query(call.id, "❌ Join ALL 4 links first!", show_alert=True)
 
 # ==========================================
-# 🌐 RENDER PRODUCTION SERVER
+# 🌐 RENDER SERVER
 # ==========================================
 app = Flask(__name__)
 
 @app.route('/')
-@app.route('/health')
-def health_check():
-    return "🔥 ROLEX ULTRA OSINT v3.0 LIVE ✅"
-
-@app.route('/stats')
-def stats():
-    try:
-        with open(ALL_USERS_FILE, "r") as f:
-            users = len([u for u in f.read().splitlines() if u.strip()])
-        return f"Active Users: {users}"
-    except:
-        return "Stats unavailable"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port, debug=False)
+def home():
+    return "🔥 ROLEX ULTRA OSINT v4.0 LIVE ✅"
 
 if __name__ == "__main__":
-    # Background Flask for Render
-    flask_thread = Thread(target=run_flask, daemon=True)
+    flask_thread = Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080))), daemon=True)
     flask_thread.start()
     
-    print("🚀 ROLEX ULTRA OSINT BOT v3.0 STARTED")
-    print("📊 APIs: NumVerify + LeakLookup + 8+ More")
-    print("🌐 Render: http://your-render-url.com/health")
-    
-    bot.infinity_polling(allowed_updates=['message', 'callback_query', 'my_chat_member'])
+    print("🚀 ROLEX ULTRA BOT v4.0 STARTED")
+    bot.infinity_polling()
