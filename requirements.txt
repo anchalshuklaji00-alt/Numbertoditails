@@ -1,0 +1,7 @@
+pyTelegramBotAPI
+requests
+phonenumbers
+holehe
+flask
+beautifulsoup4
+aiohttp
